@@ -4,11 +4,11 @@ use crate::structs::person::Person;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{http::StatusCode, response::IntoResponse, Json, Router};
-use mongodb::bson::Uuid;
 use mongodb::{bson::doc, options::ClientOptions, Client, Collection, Database};
 use std::net::SocketAddr;
 use structs::api;
 use tracing::{info, instrument};
+use uuid::Uuid;
 
 #[instrument]
 async fn get_person(State(client): State<Database>, Path(id): Path<Uuid>) -> impl IntoResponse {
@@ -37,7 +37,7 @@ async fn create_person(
     Json(body): Json<api::CreatePersonBody>,
 ) -> impl IntoResponse {
     let user = Person {
-        id: Uuid::new(),
+        id: Uuid::new_v4(),
         name: body.name,
         nickname: body.nickname,
         birth_date: body.birth_date,
@@ -85,17 +85,72 @@ async fn main() {
         .unwrap();
     info!("Successfully connected to MongoDB!");
 
-    let app = Router::new()
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    tracing::debug!("Starting server at {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app(client.database("test")).into_make_service())
+        .await
+        .unwrap()
+}
+
+fn app(database: Database) -> Router {
+    Router::new()
         .route("/pessoas/:id", get(get_person))
         .route("/pessoas", post(create_person))
         .route("/pessoas", get(search_persons))
         .route("/contagem-pessoas", get(count_persons))
-        .with_state(client.database("test"));
+        .with_state(database)
+}
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    tracing::debug!("Starting server at {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::{header::LOCATION, StatusCode};
+    use axum_test_helper::TestClient;
+    use chrono::NaiveDate;
+
+    async fn get_test_database(function_name: &str) -> Database {
+        let uri = "mongodb://root:example@localhost:27017/test?authSource=admin";
+        let client_options = ClientOptions::parse(uri).await.unwrap();
+        let client = Client::with_options(client_options).unwrap();
+        let test_database_name =
+            format!("test-{}-{}", function_name, &ulid::Ulid::new().to_string());
+        client.database(&test_database_name)
+    }
+
+    #[tokio::test]
+    async fn valid_post_request() {
+        let client = TestClient::new(app(get_test_database("hello_world").await));
+
+        let res = client
+            .post("/pessoas")
+            .json(&api::CreatePersonBody {
+                nickname: String::from("foo"),
+                name: String::from("bye"),
+                birth_date: NaiveDate::from_ymd_opt(1992, 11, 23).unwrap(),
+                stacks: Some(vec![String::from("Rust"), String::from("Ruby")]),
+            })
+            .send()
+            .await;
+
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert!(res
+            .headers()
+            .get(LOCATION)
+            .expect("header found")
+            .to_str()
+            .expect("ASCII value")
+            .starts_with("/pessoas/"));
+        let response = res.json::<api::PersonBody>().await;
+        assert_eq!(response.nickname, String::from("foo"));
+        assert_eq!(response.name, String::from("bye"));
+        assert_eq!(
+            response.birth_date,
+            NaiveDate::from_ymd_opt(1992, 11, 23).unwrap()
+        );
+        assert_eq!(
+            response.stacks,
+            Some(vec![String::from("Rust"), String::from("Ruby")])
+        );
+    }
 }
