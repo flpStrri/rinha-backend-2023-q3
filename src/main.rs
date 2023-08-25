@@ -108,6 +108,7 @@ mod tests {
     use axum::http::{header::LOCATION, StatusCode};
     use axum_test_helper::TestClient;
     use chrono::NaiveDate;
+    use serde_json::json;
 
     async fn get_test_database(function_name: &str) -> Database {
         let uri = "mongodb://root:example@localhost:27017/test?authSource=admin";
@@ -152,5 +153,103 @@ mod tests {
             response.stacks,
             Some(vec![String::from("Rust"), String::from("Ruby")])
         );
+    }
+    #[tokio::test]
+    async fn other_valid_post_request() {
+        let client = TestClient::new(app(get_test_database("hello_world").await));
+
+        let res = client
+            .post("/pessoas")
+            .json(&api::CreatePersonBody {
+                nickname: String::from("foo"),
+                name: String::from("bye"),
+                birth_date: NaiveDate::from_ymd_opt(1992, 11, 23).unwrap(),
+                stacks: None,
+            })
+            .send()
+            .await;
+
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert!(res
+            .headers()
+            .get(LOCATION)
+            .expect("header found")
+            .to_str()
+            .expect("ASCII value")
+            .starts_with("/pessoas/"));
+        let response = res.json::<api::PersonBody>().await;
+        assert_eq!(response.nickname, String::from("foo"));
+        assert_eq!(response.name, String::from("bye"));
+        assert_eq!(
+            response.birth_date,
+            NaiveDate::from_ymd_opt(1992, 11, 23).unwrap()
+        );
+        assert_eq!(response.stacks, None);
+    }
+    #[tokio::test]
+    async fn invalid_name_post_request() {
+        let client = TestClient::new(app(get_test_database("hello_world").await));
+
+        let res = client
+            .post("/pessoas")
+            .json(&json!({
+                "apelido": "foo",
+                "nascimento": "1992-11-23",
+                "stack": ["Rust"]
+            }))
+            .send()
+            .await;
+
+        assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    #[tokio::test]
+    async fn invalid_nickname_post_request() {
+        let client = TestClient::new(app(get_test_database("hello_world").await));
+
+        let res = client
+            .post("/pessoas")
+            .json(&json!({
+                "nome": "foo",
+                "nascimento": "1992-11-23",
+                "stack": ["Rust"]
+            }))
+            .send()
+            .await;
+
+        assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    #[tokio::test]
+    async fn invalid_stacks_content_post_request() {
+        let client = TestClient::new(app(get_test_database("hello_world").await));
+
+        let res = client
+            .post("/pessoas")
+            .json(&json!({
+                "nome": "foo",
+                "apelido": "bar",
+                "nascimento": "1992-11-23",
+                "stack": [1, "Rust"]
+            }))
+            .send()
+            .await;
+
+        assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    #[tokio::test]
+    async fn invalid_name_content_post_request() {
+        let client = TestClient::new(app(get_test_database("hello_world").await));
+
+        let res = client
+            .post("/pessoas")
+            .json(&json!({
+                "nome": 1,
+                "apelido": "bar",
+                "nascimento": "1992-11-23",
+                "stack": ["Rust"]
+            }))
+            .send()
+            .await;
+
+        assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 }
