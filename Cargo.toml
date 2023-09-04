@@ -17,4 +17,4 @@ uuid = { version = "1.4.1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 axum-test-helper = { version = "0.3.0", features = ["withouttrace"], default-features = false }
-ulid = "1.0.0"
+ulid = "1.0.1"
