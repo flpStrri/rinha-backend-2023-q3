@@ -49,19 +49,28 @@ async fn create_person(
     };
 
     let devs_store: Collection<Person> = client.collection("devs");
-    devs_store.insert_one(&user, None).await.unwrap();
 
-    (
-        StatusCode::CREATED,
-        [("Location", format!("/pessoas/{}", &user.id))],
-        Json(api::PersonBody {
-            id: user.id,
-            name: user.name,
-            nickname: user.nickname,
-            birth_date: user.birth_date,
-            stacks: user.stacks,
-        }),
-    )
+    let inserted_result = devs_store.insert_one(&user, None).await;
+    match inserted_result {
+        Ok(_) => Ok((
+            StatusCode::CREATED,
+            [
+                (header::LOCATION, format!("/pessoas/{}", &user.id)),
+                (header::CONTENT_TYPE, String::from("application/json")),
+            ],
+            Json(api::PersonBody {
+                id: user.id,
+                name: user.name,
+                nickname: user.nickname,
+                birth_date: user.birth_date,
+                stacks: user.stacks,
+            }),
+        )),
+        Err(error) => {
+            error!("post: {}", error);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[instrument]
