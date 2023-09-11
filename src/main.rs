@@ -3,32 +3,36 @@ mod structs;
 use crate::structs::person::Person;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use axum::{http::StatusCode, response::IntoResponse, Json, Router};
+use axum::{http::header, http::StatusCode, response::IntoResponse, Json, Router};
 use mongodb::{bson::doc, options::ClientOptions, Client, Collection, Database};
 use std::net::SocketAddr;
 use structs::api;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 
 #[instrument]
 async fn get_person(State(client): State<Database>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let devs_store: Collection<Person> = client.collection("devs");
-    let aah: Person = devs_store
-        .find_one(doc! {"_id": id}, None)
-        .await
-        .unwrap()
-        .unwrap();
+    let found_dev = devs_store.find_one(doc! {"_id": id}, None).await;
 
-    (
-        StatusCode::OK,
-        Json(api::PersonBody {
-            id: aah.id,
-            name: aah.name,
-            nickname: aah.nickname,
-            birth_date: aah.birth_date,
-            stacks: aah.stacks,
-        }),
-    )
+    match found_dev {
+        Ok(Some(dev)) => Ok((
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            Json(api::PersonBody {
+                id: dev.id,
+                name: dev.name,
+                nickname: dev.nickname,
+                birth_date: dev.birth_date,
+                stacks: dev.stacks,
+            }),
+        )),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(error) => {
+            error!("get_by_id: {}", error);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[instrument]
@@ -251,5 +255,49 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn found_person() {
+        let database = get_test_database("found_person").await;
+        let client = TestClient::new(app(database.clone()));
+
+        let user = Person {
+            id: Uuid::new_v4(),
+            name: String::from("foo"),
+            nickname: String::from("bar"),
+            birth_date: NaiveDate::from_ymd_opt(2020, 12, 3).unwrap(),
+            stacks: Some(vec![String::from("Rust"), String::from("Ruby")]),
+        };
+
+        let devs_store: Collection<Person> = database.collection("devs");
+        devs_store.insert_one(&user, None).await.unwrap();
+
+        let res = client.get(&format!("/pessoas/{}", &user.id)).send().await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let response = res.json::<api::PersonBody>().await;
+        assert_eq!(response.name, String::from("foo"));
+        assert_eq!(response.nickname, String::from("bar"));
+        assert_eq!(
+            response.birth_date,
+            NaiveDate::from_ymd_opt(2020, 12, 3).unwrap()
+        );
+        assert_eq!(
+            response.stacks,
+            Some(vec![String::from("Rust"), String::from("Ruby")])
+        );
+    }
+
+    #[tokio::test]
+    async fn not_found_person() {
+        let client = TestClient::new(app(get_test_database("not_found_person").await));
+
+        let res = client
+            .get("/pessoas/e50408fa-e368-4ccd-9ade-851fdb553e0f")
+            .send()
+            .await;
+
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 }
