@@ -5,7 +5,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{http::header, http::StatusCode, response::IntoResponse, Json, Router};
 use mongodb::{bson::doc, options::ClientOptions, Client, Collection, Database};
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use structs::api;
 use tracing::{error, info, instrument};
 use uuid::Uuid;
@@ -98,7 +98,7 @@ async fn main() {
         .unwrap();
     info!("Successfully connected to MongoDB!");
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, 3000));
     tracing::debug!("Starting server at {}", addr);
     axum::Server::bind(&addr)
         .serve(app(client.database("test")).into_make_service())
