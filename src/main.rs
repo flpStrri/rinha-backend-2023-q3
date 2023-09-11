@@ -79,8 +79,21 @@ async fn search_persons(Query(query): Query<api::SearchPersonQuery>) {
 }
 
 #[instrument]
-async fn count_persons() {
-    info!("GET contagem-pessoas happened");
+async fn count_persons(State(client): State<Database>) -> impl IntoResponse {
+    let devs_store: Collection<Person> = client.collection("devs");
+    let found_dev = devs_store.count_documents(None, None).await;
+
+    match found_dev {
+        Ok(count) => Ok((
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, String::from("text/plain"))],
+            format!("{}", count),
+        )),
+        Err(error) => {
+            error!("count: {}", error);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[tokio::main]
@@ -313,5 +326,37 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn count_persons_on_empty_db() {
+        let database = get_test_database("count_persons_on_empty_db").await;
+        let client = TestClient::new(app(database.clone()));
+
+        let res = client.get("/contagem-pessoas").send().await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.text().await, "0");
+    }
+    #[tokio::test]
+    async fn count_persons_populated_db() {
+        let database = get_test_database("count_persons_on_populated_db").await;
+        let client = TestClient::new(app(database.clone()));
+
+        let user = Person {
+            id: Uuid::new_v4(),
+            name: String::from("foo"),
+            nickname: String::from("bar"),
+            birth_date: NaiveDate::from_ymd_opt(2020, 12, 3).unwrap(),
+            stacks: Some(vec![String::from("Rust"), String::from("Ruby")]),
+        };
+
+        let devs_store: Collection<Person> = database.collection("devs");
+        devs_store.insert_one(&user, None).await.unwrap();
+
+        let res = client.get("/contagem-pessoas").send().await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.text().await, "1");
     }
 }
