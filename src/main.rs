@@ -134,7 +134,7 @@ mod tests {
 
     #[tokio::test]
     async fn valid_post_request() {
-        let client = TestClient::new(app(get_test_database("hello_world").await));
+        let client = TestClient::new(app(get_test_database("valid_post_request").await));
 
         let res = client
             .post("/pessoas")
@@ -169,7 +169,7 @@ mod tests {
     }
     #[tokio::test]
     async fn other_valid_post_request() {
-        let client = TestClient::new(app(get_test_database("hello_world").await));
+        let client = TestClient::new(app(get_test_database("other_valid_post_request").await));
 
         let res = client
             .post("/pessoas")
@@ -201,7 +201,7 @@ mod tests {
     }
     #[tokio::test]
     async fn invalid_name_post_request() {
-        let client = TestClient::new(app(get_test_database("hello_world").await));
+        let client = TestClient::new(app(get_test_database("invalid_name_post_request").await));
 
         let res = client
             .post("/pessoas")
@@ -233,7 +233,10 @@ mod tests {
     }
     #[tokio::test]
     async fn invalid_stacks_content_post_request() {
-        let client = TestClient::new(app(get_test_database("hello_world").await));
+        let client = TestClient::new(app(get_test_database(
+            "invalid_stacks_content_post_request",
+        )
+        .await));
 
         let res = client
             .post("/pessoas")
@@ -250,7 +253,9 @@ mod tests {
     }
     #[tokio::test]
     async fn invalid_name_content_post_request() {
-        let client = TestClient::new(app(get_test_database("hello_world").await));
+        let client = TestClient::new(app(
+            get_test_database("invalid_name_content_post_request").await
+        ));
 
         let res = client
             .post("/pessoas")
