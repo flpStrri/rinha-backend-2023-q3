@@ -4,6 +4,7 @@ use crate::structs::person::Person;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{http::header, http::StatusCode, response::IntoResponse, Json, Router};
+use futures::stream::TryStreamExt;
 use mongodb::{bson::doc, options::ClientOptions, Client, Collection, Database};
 use std::net::{Ipv4Addr, SocketAddr};
 use structs::api;
@@ -74,8 +75,69 @@ async fn create_person(
 }
 
 #[instrument]
-async fn search_persons(Query(query): Query<api::SearchPersonQuery>) {
-    info!("GET /pessoas?t={0} happened", query.search_term)
+async fn search_persons(
+    State(client): State<Database>,
+    Query(query): Query<api::SearchPersonQuery>,
+) -> impl IntoResponse {
+    let devs_store: Collection<Person> = client.collection("devs");
+
+    let search_cursor = devs_store
+        .find(
+            doc! {
+                "$or": [
+                    {
+                        "name": mongodb::bson::Regex{
+                            pattern: query.search_term.clone(),
+                            options: String::from("i"),
+                        }
+                    },
+                    {
+                        "stacks": {
+                            "$in": [
+                                mongodb::bson::Regex{
+                                    pattern: query.search_term.clone(),
+                                    options: String::from("i"),
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "nickname": mongodb::bson::Regex{
+                            pattern: query.search_term.clone(),
+                            options: String::from("i"),
+                        }
+                    }
+                ]
+            },
+            None,
+        )
+        .await;
+    match search_cursor {
+        Ok(cursor) => {
+            let found_devs = cursor.try_collect().await.unwrap_or_else(|_| vec![]);
+
+            Ok((
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "application/json")],
+                axum::Json(
+                    found_devs
+                        .iter()
+                        .map(|dev| api::PersonBody {
+                            id: dev.id,
+                            name: dev.name.clone(),
+                            nickname: dev.nickname.clone(),
+                            birth_date: dev.birth_date,
+                            stacks: dev.stacks.clone(),
+                        })
+                        .collect::<Vec<api::PersonBody>>(),
+                ),
+            ))
+        }
+        Err(error) => {
+            error!("persons?t=QUERY: {}", error);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[instrument]
@@ -246,10 +308,7 @@ mod tests {
     }
     #[tokio::test]
     async fn invalid_stacks_content_post_request() {
-        let client = TestClient::new(app(get_test_database(
-            "invalid_stacks_content_post_request",
-        )
-        .await));
+        let client = TestClient::new(app(get_test_database("invalid_stacks_post_request").await));
 
         let res = client
             .post("/pessoas")
@@ -266,9 +325,7 @@ mod tests {
     }
     #[tokio::test]
     async fn invalid_name_content_post_request() {
-        let client = TestClient::new(app(
-            get_test_database("invalid_name_content_post_request").await
-        ));
+        let client = TestClient::new(app(get_test_database("invalid_name_post_request").await));
 
         let res = client
             .post("/pessoas")
@@ -358,5 +415,101 @@ mod tests {
 
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.text().await, "1");
+    }
+
+    #[tokio::test]
+    async fn search_person_by_name_with_exact_match() {
+        let database = get_test_database("search_person_name").await;
+        let client = TestClient::new(app(database.clone()));
+
+        let user = Person {
+            id: Uuid::new_v4(),
+            name: String::from("foo"),
+            nickname: String::from("bar"),
+            birth_date: NaiveDate::from_ymd_opt(2020, 12, 3).unwrap(),
+            stacks: Some(vec![String::from("Rust"), String::from("Ruby")]),
+        };
+
+        let devs_store: Collection<Person> = database.collection("devs");
+        devs_store.insert_one(&user, None).await.unwrap();
+
+        let res = client.get("/pessoas?t=foo").send().await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let mut response = res.json::<Vec<api::PersonBody>>().await;
+        let only_response: api::PersonBody = response.pop().expect("a person in response");
+        assert_eq!(only_response.id, user.id)
+    }
+
+    #[tokio::test]
+    async fn search_person_by_name_without_exact_match() {
+        let database = get_test_database("search_person_name").await;
+        let client = TestClient::new(app(database.clone()));
+
+        let user = Person {
+            id: Uuid::new_v4(),
+            name: String::from("foo"),
+            nickname: String::from("bar"),
+            birth_date: NaiveDate::from_ymd_opt(2020, 12, 3).unwrap(),
+            stacks: Some(vec![String::from("Rust"), String::from("Ruby")]),
+        };
+
+        let devs_store: Collection<Person> = database.collection("devs");
+        devs_store.insert_one(&user, None).await.unwrap();
+
+        let res = client.get("/pessoas?t=fo").send().await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let mut response = res.json::<Vec<api::PersonBody>>().await;
+        let only_response: api::PersonBody = response.pop().expect("a person in response");
+        assert_eq!(only_response.id, user.id)
+    }
+
+    #[tokio::test]
+    async fn search_person_by_nickname_without_exact_match() {
+        let database = get_test_database("search_person_name").await;
+        let client = TestClient::new(app(database.clone()));
+
+        let user = Person {
+            id: Uuid::new_v4(),
+            name: String::from("foo"),
+            nickname: String::from("bar"),
+            birth_date: NaiveDate::from_ymd_opt(2020, 12, 3).unwrap(),
+            stacks: Some(vec![String::from("Rust"), String::from("Ruby")]),
+        };
+
+        let devs_store: Collection<Person> = database.collection("devs");
+        devs_store.insert_one(&user, None).await.unwrap();
+
+        let res = client.get("/pessoas?t=ba").send().await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let mut response = res.json::<Vec<api::PersonBody>>().await;
+        let only_response: api::PersonBody = response.pop().expect("a person in response");
+        assert_eq!(only_response.id, user.id)
+    }
+
+    #[tokio::test]
+    async fn search_person_by_stack_without_exact_match() {
+        let database = get_test_database("search_person_name").await;
+        let client = TestClient::new(app(database.clone()));
+
+        let user = Person {
+            id: Uuid::new_v4(),
+            name: String::from("foo"),
+            nickname: String::from("bar"),
+            birth_date: NaiveDate::from_ymd_opt(2020, 12, 3).unwrap(),
+            stacks: Some(vec![String::from("Rust"), String::from("Ruby")]),
+        };
+
+        let devs_store: Collection<Person> = database.collection("devs");
+        devs_store.insert_one(&user, None).await.unwrap();
+
+        let res = client.get("/pessoas?t=rus").send().await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let mut response = res.json::<Vec<api::PersonBody>>().await;
+        let only_response: api::PersonBody = response.pop().expect("a person in response");
+        assert_eq!(only_response.id, user.id)
     }
 }
