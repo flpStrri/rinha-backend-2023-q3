@@ -8,9 +8,13 @@ pub async fn spawn_app() -> String {
     let test_address = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
     let test_listener = TcpListener::bind(test_address).expect("failed to bind random port");
     let local_address = test_listener.local_addr().unwrap();
-    let database = get_test_database().await.expect("failed to connect to mongodb");
+    let database = get_test_database()
+        .await
+        .expect("failed to connect to mongodb");
 
-    let test_server = rinha_backend_2023_q3::run(test_listener, database).await.expect("failed to run the server");
+    let test_server = rinha_backend_2023_q3::run(test_listener, database)
+        .await
+        .expect("failed to run the server");
 
     tokio::spawn(test_server);
     format!("http://{}", local_address)

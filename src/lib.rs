@@ -1,20 +1,20 @@
 use std::net::TcpListener;
 
-use axum::{http::header, http::StatusCode, Json, response::IntoResponse, Router};
 use axum::extract::{Path, Query, State};
-use axum::routing::{get, IntoMakeService, post};
+use axum::routing::{get, post, IntoMakeService};
+use axum::{http::header, http::StatusCode, response::IntoResponse, Json, Router};
 use futures::stream::TryStreamExt;
 use hyper::server::conn::AddrIncoming;
-use mongodb::{bson::doc, Client, Collection, Database};
 use mongodb::options::ClientOptions;
+use mongodb::{bson::doc, Client, Collection, Database};
 use uuid::Uuid;
 
 use structs::{api, person};
 
 use crate::configuration::DatabaseConfiguration;
 
-mod structs;
 pub mod configuration;
+mod structs;
 
 async fn health_check() -> impl IntoResponse {
     StatusCode::OK
@@ -163,14 +163,16 @@ async fn count_persons(State(client): State<Database>) -> impl IntoResponse {
     }
 }
 
-pub async fn run(listener: TcpListener, mongodb_pool: Database) -> Result<axum::Server<AddrIncoming, IntoMakeService<Router>>, hyper::Error> {
-    Ok(
-        axum::Server::from_tcp(listener)?
-            .serve(app(mongodb_pool).into_make_service())
-    )
+pub async fn run(
+    listener: TcpListener,
+    mongodb_pool: Database,
+) -> Result<axum::Server<AddrIncoming, IntoMakeService<Router>>, hyper::Error> {
+    Ok(axum::Server::from_tcp(listener)?.serve(app(mongodb_pool).into_make_service()))
 }
 
-pub async fn get_database_connection(database_config: DatabaseConfiguration) -> Result<Database, mongodb::error::Error> {
+pub async fn get_database_connection(
+    database_config: DatabaseConfiguration,
+) -> Result<Database, mongodb::error::Error> {
     let client_options = ClientOptions::parse(database_config.connection_string()).await?;
     let client = Client::with_options(client_options)?;
     Ok(client.database(&database_config.database_name))

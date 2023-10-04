@@ -19,15 +19,15 @@ async fn returns_200_ok_with_1_when_storage_got_one_dev() {
     let test_address = crate::helpers::spawn_app().await;
     reqwest::Client::new()
         .post(format!("{}/pessoas", test_address))
-        .json(
-            &serde_json::json!({
-                "apelido": "foo",
-                "nome": "bar",
-                "nascimento": "2020-12-03",
-                "stack": ["Rust", "Python"]
-            })
-        )
-        .send().await.expect("failed request");
+        .json(&serde_json::json!({
+            "apelido": "foo",
+            "nome": "bar",
+            "nascimento": "2020-12-03",
+            "stack": ["Rust", "Python"]
+        }))
+        .send()
+        .await
+        .expect("failed request");
 
     let response = reqwest::Client::new()
         .get(format!("{}/contagem-pessoas", &test_address))
