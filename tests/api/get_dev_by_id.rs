@@ -62,7 +62,6 @@ async fn returns_dev_body_when_in_storage() {
         .json::<std::collections::HashMap<String, serde_json::Value>>()
         .await
         .unwrap();
-    dbg!(&response_body);
     assert_eq!(response_body["apelido"], String::from("foo"));
     assert_eq!(response_body["nome"], String::from("bar"));
     assert_eq!(response_body["nascimento"], String::from("2020-12-03"));
