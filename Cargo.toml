@@ -3,8 +3,6 @@ name = "rinha-backend-2023-q3"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
 path = "src/lib.rs"
 
@@ -16,17 +14,19 @@ name = "rest-api-server"
 tokio = { version = "1", features = ["full"] }
 axum = "0.6"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3" }
+tracing-bunyan-formatter = "0.3"
+tracing-subscriber = { version = "0.3", features = ["registry", "env-filter", "fmt", "json"] }
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 mongodb = { version = "2.7", features = ["bson-uuid-1"] }
-uuid = { version = "1.4.1", features = ["serde", "v4"] }
+uuid = { version = "1.4", features = ["serde", "v4"] }
 futures = "0.3.28"
 hyper = "0.14.27"
 config = { version = "0.13.3", features = [] }
+tower-http = { version = "0.4.4", features = ["sensitive-headers", "trace", "util", "request-id"] }
+tower = "0.4.13"
 
 [dev-dependencies]
-axum-test-helper = { version = "0.3.0", features = ["withouttrace"], default-features = false }
-reqwest = "0.11.20"
+reqwest = { version = "0.11.20", features = ["json"] }
 serde_json = "1.0.107"
 ulid = "1.0.0"

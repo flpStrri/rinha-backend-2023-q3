@@ -1,12 +1,23 @@
 use std::net::TcpListener;
 
 use axum::extract::{Path, Query, State};
+use axum::http::Request;
 use axum::routing::{get, post, IntoMakeService};
-use axum::{http::header, http::StatusCode, response::IntoResponse, Json, Router};
+use axum::{
+    http::{header, StatusCode},
+    response::IntoResponse,
+    Json, Router,
+};
 use futures::stream::TryStreamExt;
 use hyper::server::conn::AddrIncoming;
 use mongodb::options::ClientOptions;
 use mongodb::{bson::doc, Client, Collection, Database};
+use tower::ServiceBuilder;
+use tower_http::request_id::{MakeRequestId, RequestId};
+use tower_http::{
+    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+    ServiceBuilderExt,
+};
 use uuid::Uuid;
 
 use structs::{api, person};
@@ -15,11 +26,12 @@ use crate::configuration::DatabaseConfiguration;
 
 pub mod configuration;
 mod structs;
+pub mod telemetry;
 
 async fn health_check() -> impl IntoResponse {
     StatusCode::OK
 }
-
+#[tracing::instrument(name = "Looking for a developer", skip(client))]
 async fn get_person(State(client): State<Database>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let devs_store: Collection<person::Person> = client.collection("devs");
     let found_dev = devs_store.find_one(doc! {"_id": id}, None).await;
@@ -44,6 +56,7 @@ async fn get_person(State(client): State<Database>, Path(id): Path<Uuid>) -> imp
     }
 }
 
+#[tracing::instrument(name = "Adding a new developer", skip(client, body))]
 async fn create_person(
     State(client): State<Database>,
     Json(body): Json<api::CreatePersonBody>,
@@ -55,9 +68,7 @@ async fn create_person(
         birth_date: body.birth_date,
         stacks: body.stacks,
     };
-
     let devs_store: Collection<person::Person> = client.collection("devs");
-
     let inserted_result = devs_store.insert_one(&user, None).await;
     match inserted_result {
         Ok(_) => Ok((
@@ -80,7 +91,7 @@ async fn create_person(
         }
     }
 }
-
+#[tracing::instrument(name = "Searching for a developer", skip(client))]
 async fn search_persons(
     State(client): State<Database>,
     Query(query): Query<api::SearchPersonQuery>,
@@ -178,12 +189,40 @@ pub async fn get_database_connection(
     Ok(client.database(&database_config.database_name))
 }
 
+#[derive(Clone, Copy)]
+struct MakeRequestUuid;
+
+impl MakeRequestId for MakeRequestUuid {
+    fn make_request_id<B>(&mut self, _request: &Request<B>) -> Option<RequestId> {
+        let request_id = Uuid::new_v4().to_string().parse().unwrap();
+        Some(RequestId::new(request_id))
+    }
+}
+
 fn app(database: Database) -> Router {
+    let sensitive_headers: std::sync::Arc<[_]> = vec![header::AUTHORIZATION, header::COOKIE].into();
+
+    let tracing_middleware = ServiceBuilder::new()
+        .sensitive_request_headers(sensitive_headers.clone())
+        .set_x_request_id(MakeRequestUuid)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(
+                    DefaultMakeSpan::new()
+                        .include_headers(true)
+                        .level(tracing::Level::INFO),
+                )
+                .on_response(DefaultOnResponse::new().include_headers(true)),
+        )
+        .propagate_x_request_id()
+        .sensitive_response_headers(sensitive_headers);
+
     Router::new()
-        .route("/health-check", get(health_check))
         .route("/pessoas/:id", get(get_person))
         .route("/pessoas", post(create_person))
         .route("/pessoas", get(search_persons))
         .route("/contagem-pessoas", get(count_persons))
+        .layer(tracing_middleware)
+        .route("/health-check", get(health_check))
         .with_state(database)
 }
