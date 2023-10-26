@@ -3,10 +3,10 @@ use reqwest::StatusCode;
 
 #[tokio::test]
 async fn returns_200_with_dev_body_given_a_valid_body() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
 
     let response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bye",
@@ -40,10 +40,10 @@ async fn returns_200_with_dev_body_given_a_valid_body() {
 
 #[tokio::test]
 async fn returns_200_with_dev_body_given_a_valid_stackless_body() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
 
     let response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bye",
@@ -74,10 +74,10 @@ async fn returns_200_with_dev_body_given_a_valid_stackless_body() {
 
 #[tokio::test]
 async fn returns_422_unprocessable_entity_when_missing_name() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
 
     let response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
            "apelido": "foo",
             "nascimento": "1992-11-23",
@@ -92,10 +92,10 @@ async fn returns_422_unprocessable_entity_when_missing_name() {
 
 #[tokio::test]
 async fn returns_422_unprocessable_entity_when_missing_nickname() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
 
     let response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "nome": "foo",
             "nascimento": "1992-11-23",
@@ -110,10 +110,10 @@ async fn returns_422_unprocessable_entity_when_missing_nickname() {
 
 #[tokio::test]
 async fn returns_422_unprocessable_entity_given_invalid_stack_content() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
 
     let response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "nome": "foo",
             "apelido": "bar",
@@ -129,10 +129,10 @@ async fn returns_422_unprocessable_entity_given_invalid_stack_content() {
 
 #[tokio::test]
 async fn returns_422_unprocessable_entity_given_invalid_name() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
 
     let response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
            "nome": 1,
             "apelido": "bar",

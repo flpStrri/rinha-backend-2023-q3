@@ -3,9 +3,9 @@ use reqwest::StatusCode;
 
 #[tokio::test]
 async fn returns_200_ok_when_in_storage() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
     let post_response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bar",
@@ -23,7 +23,7 @@ async fn returns_200_ok_when_in_storage() {
         .expect("not ASCII value");
 
     let response = reqwest::Client::new()
-        .get(format!("{}{}", &test_address, &location_header))
+        .get(format!("{}{}", &test_app.address, &location_header))
         .send()
         .await
         .expect("failed request");
@@ -33,9 +33,9 @@ async fn returns_200_ok_when_in_storage() {
 
 #[tokio::test]
 async fn returns_dev_body_when_in_storage() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
     let post_response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bar",
@@ -53,7 +53,7 @@ async fn returns_dev_body_when_in_storage() {
         .expect("not ASCII value");
 
     let response = reqwest::Client::new()
-        .get(format!("{}{}", &test_address, &location_header))
+        .get(format!("{}{}", &test_app.address, &location_header))
         .send()
         .await
         .expect("failed request");
@@ -73,12 +73,12 @@ async fn returns_dev_body_when_in_storage() {
 
 #[tokio::test]
 async fn returns_404_not_found_when_not_in_storage() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
 
     let response = reqwest::Client::new()
         .get(format!(
             "{}/pessoas/e50408fa-e368-4ccd-9ade-851fdb553e0f",
-            test_address
+            test_app.address
         ))
         .send()
         .await

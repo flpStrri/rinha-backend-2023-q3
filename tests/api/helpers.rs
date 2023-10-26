@@ -7,7 +7,11 @@ use rinha_backend_2023_q3::{configuration, telemetry};
 
 static TRACING: Once = Once::new();
 
-pub async fn spawn_app() -> String {
+pub struct TestApp {
+    pub address: String,
+}
+
+pub async fn spawn_app() -> TestApp {
     TRACING.call_once(|| {
         let default_filter_level = EnvFilter::new("info");
         let subscriber_name = "rinha-de-backend-2023-q3";

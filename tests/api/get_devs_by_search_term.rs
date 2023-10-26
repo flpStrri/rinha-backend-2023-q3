@@ -2,9 +2,9 @@ use reqwest::StatusCode;
 
 #[tokio::test]
 async fn returns_200_ok_with_dev_when_searching_by_nickname_with_exact_match() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
     let post_response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bar",
@@ -20,7 +20,7 @@ async fn returns_200_ok_with_dev_when_searching_by_nickname_with_exact_match() {
         .unwrap();
 
     let response = reqwest::Client::new()
-        .get(format!("{}/pessoas?t=foo", &test_address))
+        .get(format!("{}/pessoas?t=foo", &test_app.address))
         .send()
         .await
         .expect("failed request");
@@ -37,9 +37,9 @@ async fn returns_200_ok_with_dev_when_searching_by_nickname_with_exact_match() {
 
 #[tokio::test]
 async fn returns_200_ok_with_dev_when_searching_by_nickname_without_exact_match() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
     let post_response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bar",
@@ -55,7 +55,7 @@ async fn returns_200_ok_with_dev_when_searching_by_nickname_without_exact_match(
         .unwrap();
 
     let response = reqwest::Client::new()
-        .get(format!("{}/pessoas?t=fo", &test_address))
+        .get(format!("{}/pessoas?t=fo", &test_app.address))
         .send()
         .await
         .expect("failed request");
@@ -72,9 +72,9 @@ async fn returns_200_ok_with_dev_when_searching_by_nickname_without_exact_match(
 
 #[tokio::test]
 async fn returns_200_ok_with_dev_when_searching_by_name_without_exact_match() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
     let post_response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bar",
@@ -90,7 +90,7 @@ async fn returns_200_ok_with_dev_when_searching_by_name_without_exact_match() {
         .unwrap();
 
     let response = reqwest::Client::new()
-        .get(format!("{}/pessoas?t=ba", &test_address))
+        .get(format!("{}/pessoas?t=ba", &test_app.address))
         .send()
         .await
         .expect("failed request");
@@ -107,9 +107,9 @@ async fn returns_200_ok_with_dev_when_searching_by_name_without_exact_match() {
 
 #[tokio::test]
 async fn returns_200_ok_with_dev_when_searching_by_stack_without_exact_match() {
-    let test_address = crate::helpers::spawn_app().await;
+    let test_app = crate::helpers::spawn_app().await;
     let post_response = reqwest::Client::new()
-        .post(format!("{}/pessoas", test_address))
+        .post(format!("{}/pessoas", test_app.address))
         .json(&serde_json::json!({
             "apelido": "foo",
             "nome": "bar",
@@ -125,7 +125,7 @@ async fn returns_200_ok_with_dev_when_searching_by_stack_without_exact_match() {
         .unwrap();
 
     let response = reqwest::Client::new()
-        .get(format!("{}/pessoas?t=rus", &test_address))
+        .get(format!("{}/pessoas?t=rus", &test_app.address))
         .send()
         .await
         .expect("failed request");
