@@ -36,5 +36,5 @@ pub async fn spawn_app() -> TestApp {
     let address = format!("http://{}", application.address());
 
     tokio::spawn(async move { application.run().await.expect("Failed to run the server") });
-    address
+    TestApp { address }
 }
