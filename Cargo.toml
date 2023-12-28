@@ -12,7 +12,7 @@ name = "rest-api-server"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-axum = "0.6"
+axum = "0.7.2"
 tracing = "0.1"
 tracing-bunyan-formatter = "0.3"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter", "fmt", "json"] }
@@ -21,9 +21,9 @@ chrono = { version = "0.4", features = ["serde"] }
 mongodb = { version = "2.7", features = ["bson-uuid-1"] }
 uuid = { version = "1.6", features = ["serde", "v4"] }
 futures = "0.3.29"
-hyper = "0.14.27"
+hyper = "1.1.0"
 config = { version = "0.13.4", features = [] }
-tower-http = { version = "0.4.4", features = ["sensitive-headers", "trace", "util", "request-id"] }
+tower-http = { version = "0.5.0", features = ["sensitive-headers", "trace", "util", "request-id"] }
 tower = "0.4.13"
 
 [dev-dependencies]

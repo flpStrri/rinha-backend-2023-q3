@@ -1,10 +1,8 @@
-use std::net::{Ipv4Addr, SocketAddr, TcpListener};
+use std::io::Error;
+use std::net::{Ipv4Addr, SocketAddr};
 
-use crate::configuration::{DatabaseConfiguration, StaticConfiguration};
-use crate::routes;
-use axum::http::Request;
 use axum::routing::{get, post};
-use axum::{http::header, Router};
+use axum::{http, Router};
 use mongodb::options::ClientOptions;
 use mongodb::{Client, Database};
 use tower::ServiceBuilder;
@@ -15,24 +13,28 @@ use tower_http::{
 };
 use uuid::Uuid;
 
+use crate::configuration::{DatabaseConfiguration, StaticConfiguration};
+use crate::routes;
+
 pub struct Application {
     app: Router,
-    listener: TcpListener,
+    listener: tokio::net::TcpListener,
 }
 
 impl Application {
     pub async fn build(static_config: StaticConfiguration) -> Self {
         let server_address =
             SocketAddr::from((Ipv4Addr::UNSPECIFIED, static_config.application_port));
-        let server_listener =
-            TcpListener::bind(server_address).expect("failed to bind random port");
+        let server_listener = tokio::net::TcpListener::bind(server_address)
+            .await
+            .expect("failed to bind random port");
 
         let mongodb_pool = get_database_connection(static_config.database)
             .await
             .expect("failed to connect to mongodb");
 
         let sensitive_headers: std::sync::Arc<[_]> =
-            vec![header::AUTHORIZATION, header::COOKIE].into();
+            vec![http::header::AUTHORIZATION, http::header::COOKIE].into();
         let tracing_middleware = ServiceBuilder::new()
             .sensitive_request_headers(sensitive_headers.clone())
             .set_x_request_id(MakeRequestUuid)
@@ -63,10 +65,8 @@ impl Application {
         }
     }
 
-    pub async fn run(self) -> Result<(), hyper::Error> {
-        axum::Server::from_tcp(self.listener)?
-            .serve(self.app.into_make_service())
-            .await
+    pub async fn run(self) -> Result<(), Error> {
+        axum::serve(self.listener, self.app).await
     }
 
     pub fn address(&self) -> String {
@@ -86,7 +86,7 @@ pub async fn get_database_connection(
 struct MakeRequestUuid;
 
 impl MakeRequestId for MakeRequestUuid {
-    fn make_request_id<B>(&mut self, _request: &Request<B>) -> Option<RequestId> {
+    fn make_request_id<B>(&mut self, _request: &http::Request<B>) -> Option<RequestId> {
         let request_id = Uuid::new_v4().to_string().parse().unwrap();
         Some(RequestId::new(request_id))
     }
